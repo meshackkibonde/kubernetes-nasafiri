@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nasafiri-next-app
+  labels:
+    app:  nasafiri-next-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app:  nasafiri-next-app
+  template:
+    metadata:
+      labels:
+        app:  nasafiri-next-app
+    spec:
+      containers:
+        - name: nasafiri-next-app
+          image: meshackkibonde/nasafiri-next-app:v2
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu:  "100m"
+            limits:
+              memory: 512Mi
+              cpu:  "1000m"
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_FRONTEND_URL
+              value: "http://localhost:3000"
+            - name: NEXTAUTH_URL
+              value: "http://localhost:3000"
+            - name: NEXT_PUBLIC_BACKEND_URL
+              value: "http://localhost:8000"
+            - name: BACKEND_URL
+              value: "http://django-service:8000"
+            - name: AUTH_SECRET
+              value: 5U8sM8wGsLhDe5rShR9i+UryIVjf/OvB6T8JnRv6tx8=
+---
+#nasafiri service
+apiVersion: v1
+kind: Service
+metadata: 
+  name: nasafiri-service
+spec:
+  type: ClusterIP
+  selector:
+    app:  nasafiri-next-app
+  ports:
+    - protocol: TCP 
+      port: 3000
+      targetPort: 3000

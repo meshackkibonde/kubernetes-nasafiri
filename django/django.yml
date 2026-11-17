@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: static-volume-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage:  10Gi
+  storageClassName: standard
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-volume-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage:  10Gi
+  storageClassName: standard
+---
+
+#postgres Config Map
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config-map-ref
+data:
+  USE_LOCAL_DB: "False"
+  DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost,ewe-relevant-fox.ngrok-free.app,api.nasafiri.co.tz,portal.nasafiri.co.tz"
+  DJANGO_DEBUG: "True"
+  DJANGO_TIME_ZONE: "Africa/Nairobi"
+  CSRF_TRUSTED_ORIGINS: "https://162.243.79.36/"
+  DB_ENGINE:  "django.db.backends.postgresql"
+  DB_NAME:  "db"
+  DB_USER:  "admin"
+  DB_HOST:  "db-service"
+  DB_PORT:  "5432"
+  SENDER_ID:  "Nasafiri"
+  APP_URL:  "https://nasafiri.herokuapp.com"
+---  
+
+#postgres Secret Map
+apiVersion: v1
+kind: Secret
+metadata:
+  name: django-secret-ref
+type: Opaque
+stringData:
+  DJANGO_SECRET_KEY:  "django-insecure-pb#=a^5e_jmq!twz+kqftstpj6^m2ksefu14y7h$qq9ky*5^4t"
+  DB_PASSWORD:  "admin"
+  AFRICASTALKING_USERNAME:  "zogota"
+  AFRICASTALKING_API_KEY: "atsk_72ef409fd8572b513d68bedf7b3ea6c40ccdb661afdb1e63cb61aab8f7d78fa076c0d54b"
+  DJANGO_SUPERUSER_USERNAME:  "admin"
+  DJANGO_SUPERUSER_PHONE_NUMBER:  "254700000000"
+  DJANGO_SUPERUSER_EMAIL: "admin@busbooking.com"
+  DJANGO_SUPERUSER_PASSWORD:  "admin123"
+---
+
+#django deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nasafiri-backend-python
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app:  nasafiri-backend-python
+  template:
+    metadata:
+      labels:
+        app:  nasafiri-backend-python
+    spec:
+      containers:
+        - name: nasafiri-backend-python
+          image: meshackkibonde/nasafiri-backend-python:v1 
+          imagePullPolicy: Always
+          command:  ["/bin/sh", "-c"]
+          args:
+            - |
+              python manage.py migrate && \
+              python manage.py load_routes && \
+              python manage.py collectstatic --noinput && \
+              exec gunicorn --config gunicorn_config.py backend.wsgi:application  
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu:  "100m"
+            limits:
+              memory: "512Mi"
+              cpu:  "1000m"
+          env:
+            - name: DB_HOST
+              value: "db-service"
+            - name: DB_PORT
+              value: "5432"
+            - name: USE_LOCAL_DB
+              value: "false"
+            - name: REDIS_HOST
+              value: "redis-service"   
+            - name: REDIS_PORT
+              value: "6379"    
+          envFrom:
+            - configMapRef:
+                name: django-config-map-ref
+            - secretRef:
+                name: django-secret-ref
+          volumeMounts:
+            - mountPath: /app/static
+              name: static-volume
+            - mountPath: /app/media
+              name: media-volume
+          ports:
+            - containerPort: 8000
+      volumes:
+        - name: static-volume
+          persistentVolumeClaim:
+            claimName: static-volume-claim
+        - name: media-volume
+          persistentVolumeClaim:
+            claimName: media-volume-claim
+---
+
+#postgres service
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-service
+spec:
+  type: ClusterIP
+  selector:
+    app:  nasafiri-backend-python
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  

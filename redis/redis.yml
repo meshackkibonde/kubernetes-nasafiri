@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busbooking-redis-deployment
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app:  busbooking-redis
+  template:
+    metadata:
+      labels:
+        app:  busbooking-redis
+    spec:
+      containers:
+        - name: busbooking-redis
+          image: redis:7-alpine
+          resources:
+            requests:
+              memory:  "128Mi"
+              cpu:  "100m"
+            limits:
+              memory:  "256Mi"
+              cpu:  "1000m"
+          volumeMounts:
+            - mountPath: /data
+              name: redis-data
+          ports:
+            - containerPort: 6379
+      volumes:
+        - name: redis-data
+          emptyDir: {}
+
+---
+
+#redis service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  selector:
+    app:  busbooking_redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+    
